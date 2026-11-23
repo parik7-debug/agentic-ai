@@ -1,3 +1,4 @@
+import os
 import tempfile
 import uuid
 from pathlib import Path
@@ -13,7 +14,7 @@ from document_pipeline.retriever import DocumentRetriever
 from document_pipeline.vector_store import ChromaVectorStore
 
 
-UPLOAD_DIRECTORY = Path("uploads")
+UPLOAD_DIRECTORY = Path(os.getenv("UPLOAD_DIRECTORY", "uploads"))
 ALLOWED_FILE_SUFFIXES = {".pdf", ".txt", ".json"}
 MAX_FILES_PER_UPLOAD = 10
 MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024

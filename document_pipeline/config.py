@@ -8,7 +8,9 @@ CHUNK_SIZE = 200
 CHUNK_OVERLAP = 30
 EMBEDDING_MODEL = "models/gemini-embedding-001"
 CHROMA_COLLECTION_NAME = "embedding_collection"
-CHROMA_PERSIST_DIRECTORY = "chroma_store"
+CHROMA_PERSIST_DIRECTORY = os.getenv(
+    "CHROMA_PERSIST_DIRECTORY", "chroma_store"
+)
 DEFAULT_SEARCH_RESULT_COUNT = 4
 QUESTION = "summarise the opportunity cost"
 GENERATION_MODEL = "gemini-3.5-flash-lite"

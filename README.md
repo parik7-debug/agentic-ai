@@ -49,6 +49,28 @@ The `document_pipeline` package separates the workflow into focused classes:
   prompts using the retrieved context.
 - `DocumentPipeline` composes the classes for an end-to-end run.
 
+### Architecture and request workflow
+
+```text
+POST /documents
+  -> DocumentLoader (PDF/TXT/JSON extraction)
+  -> DocumentChunker
+  -> Gemini embedding model
+  -> Chroma collection: embedding_collection
+
+POST /questions (question + upload_ids)
+  -> Chroma retriever (filtered to those upload IDs)
+  -> DocumentAgent / retrieve_documents tool
+  -> Gemini chat model
+  -> JSON answer
+```
+
+The API is a FastAPI layer over the same loader, chunker, vector-store,
+retriever, and agent classes used by the command-line pipeline. Chroma and
+upload directories can be configured with `CHROMA_PERSIST_DIRECTORY` and
+`UPLOAD_DIRECTORY`; both default to local folders in the current working
+directory.
+
 The pipeline uses `GEMINI_API_KEY` from `.env` with Google's
 `models/gemini-embedding-001` embedding model. Gemini 429 rate limits are
 retried up to two times, honoring the suggested delay (up to 120 seconds) or
@@ -77,7 +99,74 @@ PDF, TXT, or JSON files to `POST /documents`. The response contains an
 `upload_id`; include it in `upload_ids` when posting a natural-language
 `question` to `POST /questions`. Answers are restricted to the uploaded
 documents identified by those IDs. Original files are stored under `uploads/`
-and their chunks use the existing persistent Chroma collection.
+and their chunks use the Chroma collection.
+
+### Cloud Run demo deployment
+
+The repository includes a `Dockerfile` and `.dockerignore` for Cloud Run.
+Deploying requires a Google Cloud project with billing enabled, the Google
+Cloud CLI (`gcloud`), and a Gemini API key. Do not put the key in the image,
+source code, or a checked-in `.env` file.
+
+1. Authenticate and select the Google Cloud project:
+
+   ```powershell
+   gcloud auth login
+   gcloud config set project YOUR_PROJECT_ID
+   gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com
+   ```
+
+2. In Google Cloud Secret Manager, create a secret named `gemini-api-key` and
+   add the Gemini key as a secret version. Grant the Cloud Run service identity
+   the **Secret Manager Secret Accessor** role for this secret. Use the actual
+   version number in the deploy command below.
+
+3. From the project root, deploy a single-instance demo:
+
+   ```powershell
+   gcloud run deploy document-qa-api --source . --region us-central1 --no-allow-unauthenticated --memory 2Gi --timeout 300 --max 1 --concurrency 1 --set-env-vars "UPLOAD_DIRECTORY=/tmp/uploads,CHROMA_PERSIST_DIRECTORY=/tmp/chroma_store" --set-secrets "GEMINI_API_KEY=gemini-api-key:1"
+   ```
+
+   Replace `us-central1` and secret version `1` as needed. `--no-allow-unauthenticated`
+   keeps the service private; grant the evaluator the Cloud Run Invoker role.
+   To make the service public, use `--allow-unauthenticated` instead only after
+   considering the access and quota limitations below.
+
+4. Copy the service URL printed by `gcloud run deploy`, then verify
+   `https://SERVICE_URL/health`. For a private service, authenticate the request
+   with an identity that has Cloud Run Invoker access.
+
+For a local container smoke test:
+
+```powershell
+docker build -t document-qa-api .
+docker run --rm -p 8080:8080 --env-file .env -e UPLOAD_DIRECTORY=/tmp/uploads -e CHROMA_PERSIST_DIRECTORY=/tmp/chroma_store document-qa-api
+```
+
+Then open `http://127.0.0.1:8080/docs`.
+
+### Limitations and deployment considerations
+
+- **Cloud Run data is temporary:** this demo writes uploads and Chroma files to
+  `/tmp`. Cloud Run's writable filesystem uses instance memory and is lost when
+  an instance stops. A new instance will not have the previous instance's
+  uploads or vectors. The deployment command limits the service to one instance
+  so consecutive requests are more likely to use the same in-memory store; it
+  does not make the data durable. Re-upload documents after a restart or
+  scale-to-zero event.
+- **Memory use can grow:** uploads and Chroma's local database consume instance
+  memory. The per-request upload limit does not impose a total storage limit.
+- **No application-level user authentication:** upload IDs filter retrieval but
+  are not user accounts or authorization. Keep Cloud Run IAM authentication
+  enabled for this demo. If public access is required, add API authentication,
+  rate limits, and usage monitoring before sharing the URL; otherwise others
+  can use the Gemini-backed endpoints and consume your quota.
+- **External API dependency:** embedding and answer generation require a valid
+  Gemini key, network connectivity, available quota, and may incur charges.
+- **Supported content:** PDF, TXT, and JSON only. Scanned PDFs require OCR,
+  which is not included.
+- **Demo, not production:** there is no document deletion endpoint,
+  multi-user isolation, durable backup, or production monitoring.
 
 Or configure the pipeline in Python:
 
