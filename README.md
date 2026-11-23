@@ -124,17 +124,27 @@ source code, or a checked-in `.env` file.
 3. From the project root, deploy a single-instance demo:
 
    ```powershell
-   gcloud run deploy document-qa-api --source . --region us-central1 --no-allow-unauthenticated --memory 2Gi --timeout 300 --max 1 --concurrency 1 --set-env-vars "UPLOAD_DIRECTORY=/tmp/uploads,CHROMA_PERSIST_DIRECTORY=/tmp/chroma_store" --set-secrets "GEMINI_API_KEY=gemini-api-key:1"
+   gcloud run deploy document-qa-api --source . --region us-central1 --no-allow-unauthenticated --memory 2Gi --timeout 300 --max 1 --concurrency 1 --set-env-vars "UPLOAD_DIRECTORY=/tmp/uploads,CHROMA_PERSIST_DIRECTORY=/tmp/chroma_store" --set-secrets "GEMINI_API_KEY=gemini-api-key:2"
    ```
 
-   Replace `us-central1` and secret version `1` as needed. `--no-allow-unauthenticated`
-   keeps the service private; grant the evaluator the Cloud Run Invoker role.
+   Replace `us-central1` and secret version `2` with your region and the current
+   enabled secret version if they differ.
+   `--no-allow-unauthenticated` keeps the service private.
    To make the service public, use `--allow-unauthenticated` instead only after
    considering the access and quota limitations below.
 
 4. Copy the service URL printed by `gcloud run deploy`, then verify
    `https://SERVICE_URL/health`. For a private service, authenticate the request
-   with an identity that has Cloud Run Invoker access.
+   with an identity that has Cloud Run Invoker access. To give an evaluator
+   access to the private service, grant their Google account the Invoker role:
+
+   ```powershell
+   gcloud run services add-iam-policy-binding document-qa-api --project YOUR_PROJECT_ID --region us-central1 --member user:EVALUATOR_EMAIL --role roles/run.invoker
+   ```
+
+The deployed capstone demo is currently at
+[document-qa-api](https://document-qa-api-zmkwmubrgq-uc.a.run.app). It is private;
+`/health` and `/docs` require an identity with Cloud Run Invoker access.
 
 For a local container smoke test:
 
