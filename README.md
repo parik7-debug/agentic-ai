@@ -146,6 +146,41 @@ The deployed capstone demo is currently at
 [document-qa-api](https://document-qa-api-zmkwmubrgq-uc.a.run.app). It is private;
 `/health` and `/docs` require an identity with Cloud Run Invoker access.
 
+#### Test the deployed API (PowerShell)
+
+The project owner must first grant the evaluator's Google account the
+`roles/run.invoker` role using the command above. The evaluator then runs these
+commands from the project root. Uploading and asking a question call Gemini and
+may consume API quota.
+
+```powershell
+gcloud auth login
+$url = "https://document-qa-api-zmkwmubrgq-uc.a.run.app"
+$token = gcloud auth print-identity-token
+
+curl.exe -i -H "Authorization: Bearer $token" "$url/health"
+
+$upload = curl.exe -sS -H "Authorization: Bearer $token" `
+  -F "files=@resources\AP_Micro_Unit1_Quizlet.txt" `
+  "$url/documents" | ConvertFrom-Json
+$upload | Format-List
+
+$body = @{
+  question = "What is opportunity cost?"
+  upload_ids = @($upload.upload_id)
+} | ConvertTo-Json -Compress
+
+Invoke-RestMethod -Uri "$url/questions" -Method Post `
+  -Headers @{ Authorization = "Bearer $token" } `
+  -ContentType "application/json" -Body $body
+```
+
+The health request should return `{"status":"ok"}`. The upload response
+includes an `upload_id` and `chunks_indexed`; the question response contains
+the generated answer. Run the upload and question requests close together:
+Cloud Run's demo storage is temporary, so an instance restart can remove the
+uploaded chunks. Never share the identity token or Gemini API key.
+
 For a local container smoke test:
 
 ```powershell
