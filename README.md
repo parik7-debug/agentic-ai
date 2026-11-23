@@ -101,6 +101,18 @@ PDF, TXT, or JSON files to `POST /documents`. The response contains an
 documents identified by those IDs. Original files are stored under `uploads/`
 and their chunks use the Chroma collection.
 
+### Run unit tests
+
+From the project root, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+The tests cover API upload/question behavior, document chunking, retrieval
+formatting, and agent responses. They mock Gemini and vector-store operations,
+so they do not require a live API key or consume Gemini quota.
+
 ### Cloud Run demo deployment
 
 The repository includes a `Dockerfile` and `.dockerignore` for Cloud Run.

@@ -42,6 +42,23 @@ class DocumentApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 415)
 
+    def test_upload_rejects_empty_file(self) -> None:
+        response = self.client.post(
+            "/documents",
+            files={"files": ("empty.txt", b"")},
+        )
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_upload_rejects_file_over_size_limit(self) -> None:
+        with patch.object(api, "MAX_FILE_SIZE_BYTES", 3):
+            response = self.client.post(
+                "/documents",
+                files={"files": ("large.txt", b"four")},
+            )
+
+        self.assertEqual(response.status_code, 413)
+
     def test_question_is_scoped_to_the_supplied_upload_ids(self) -> None:
         vector_store = Mock()
         vector_store.get.return_value = {"ids": ["chunk-1"]}
@@ -71,6 +88,27 @@ class DocumentApiTests(unittest.TestCase):
             vector_store, metadata_filter=upload_filter
         )
         answerer.answer.assert_called_once_with("What is opportunity cost?")
+
+    def test_question_rejects_unknown_upload_ids(self) -> None:
+        vector_store = Mock()
+        vector_store.get.return_value = {"ids": []}
+        manager = Mock()
+        manager.open_vector_store.return_value = vector_store
+
+        with (
+            patch.object(api, "ChromaVectorStore", return_value=manager),
+            patch.object(api, "DocumentRetriever") as retriever_class,
+        ):
+            response = self.client.post(
+                "/questions",
+                json={
+                    "question": "What is opportunity cost?",
+                    "upload_ids": ["unknown-upload"],
+                },
+            )
+
+        self.assertEqual(response.status_code, 404)
+        retriever_class.assert_not_called()
 
 
 if __name__ == "__main__":
