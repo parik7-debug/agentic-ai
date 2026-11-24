@@ -4,6 +4,8 @@ A small command-line LLM agent built with LangChain and Google's Gemini API. It
 can call a local `hello_world` tool; ask it to use the tool to see the complete
 flow.
 
+For architecture and component details, see [DESIGN.md](DESIGN.md).
+
 ## Setup (Windows PowerShell)
 
 1. Create and activate a virtual environment:
